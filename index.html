@@ -114,6 +114,7 @@ input.amount{font-size:34px;font-weight:700;text-align:center;padding:14px}
 .bd{margin-top:10px;text-align:center;color:var(--mu);font-size:14px}
 #toast{position:fixed;left:50%;bottom:calc(88px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:rgba(40,40,42,.92);color:#fff;padding:9px 16px;border-radius:20px;font-size:14px;opacity:0;transition:opacity .2s;z-index:50;pointer-events:none;white-space:nowrap}
 #toast.on{opacity:1}
+.rt{color:var(--tx);margin:0 0 4px}.note small{display:block;color:var(--mu);font-size:12px;margin-top:2px}
 </style>
 </head>
 <body>
@@ -129,7 +130,7 @@ const IK=[['🥇','Gold'],['💵','Dollar'],['🪙','Coin'],['₿','Crypto'],['�
 const MN=['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند'];
 const WD=['یکشنبه','دوشنبه','سه‌شنبه','چهارشنبه','پنجشنبه','جمعه','شنبه'];
 const PAL=['#0f766e','#ff9f0a','#0a84ff','#bf5af2','#ff375f','#30b0c7','#ffd60a','#8e8e93','#64d2ff','#a2845e'];
-let S={tx:[],inv:[],plan:[],carry:true,lastBackup:null};
+let S={tx:[],inv:[],plan:[],rates:null,carry:true,lastBackup:null};
 try{S=Object.assign(S,JSON.parse(localStorage.getItem(K)||'{}'))}catch(e){}
 if(!Array.isArray(S.tx))S.tx=[];if(!Array.isArray(S.inv))S.inv=[];if(!Array.isArray(S.plan))S.plan=[];
 if(!S.cats||!S.cats.out||!S.cats.in)S.cats=JSON.parse(JSON.stringify(DC));
@@ -196,7 +197,7 @@ function mv(d){cur.m+=d;if(cur.m>12){cur.m=1;cur.y++}if(cur.m<1){cur.m=12;cur.y-
 const nav=()=>`<div class="mn"><button onclick="mv(-1)" aria-label="Previous">${sv('l',20,2.2)}</button><b><bdi>${MN[cur.m-1]} ${pd(cur.y)}</bdi></b><button onclick="mv(1)" aria-label="Next">${sv('r',20,2.2)}</button></div>`;
 const wj=iso=>wdn(iso)+' '+jt(iso);
 const row=(t,g)=>`<button class="row" onclick="openForm(${t.id})"><span class="ic">${ico(t.type,t.cat)}</span><span class="mid"><b><bdi>${esc(t.cat)}</bdi></b><small>${g?'':`<bdi>${wj(t.date)}</bdi>`}${t.note?`<bdi class="nt">${esc(t.note)}</bdi>`:''}</small></span><span class="amt ${t.type}">${t.type==='in'?'+':'−'}${fa(t.amount)}</span></button>`;
-const irow=x=>`<button class="row" onclick="openInv(${x.id})"><span class="ic">${iic(x.kind)}</span><span class="mid"><b>${x.dir==='s'?'Sold':'Bought'} <bdi>${esc(x.kind)}</bdi></b><small><bdi>${wj(x.date)}</bdi>${x.note?`<bdi class="nt">${esc(x.note)}</bdi>`:''}</small></span><span class="amt ${x.dir==='s'?'out':'ac'}">${x.dir==='s'?'−':'+'}${fa(x.amount)}</span></button>`;
+const irow=x=>`<button class="row" onclick="openInv(${x.id})"><span class="ic">${iic(x.kind)}</span><span class="mid"><b>${x.dir==='s'?'Sold':'Bought'} <bdi>${esc(x.kind)}</bdi></b><small>${x.qty?`<bdi>${fu(x.kind,x.qty)}</bdi> · `:''}<bdi>${wj(x.date)}</bdi>${x.note?`<bdi class="nt">${esc(x.note)}</bdi>`:''}</small></span><span class="amt ${x.dir==='s'?'out':'ac'}">${x.dir==='s'?'−':'+'}${fa(x.amount)}</span></button>`;
 
 /* انتخاب‌گر تاریخ شمسی */
 const PK={};
@@ -275,11 +276,12 @@ function repH(){
  <div class="bd" id="bd">Tap a bar</div></div>`;
  return h}
 function invH(){
- const net=S.inv.reduce((s,x)=>s+(x.dir==='s'?-x.amount:x.amount),0);
- let h=hdr()+`<div class="hero"><small>Invested</small><div class="big ${net<0?'neg':''}">${net<0?'−':''}${fa(Math.abs(net))}</div></div>`;
+ const net=S.inv.reduce((s,x)=>s+sg(x)*x.amount,0),V=S.inv.reduce((s,x)=>s+val(x),0),pl=V-net,hl=hold();
+ let h=hdr()+`<div class="hero"><small>Value</small><div class="big ${V<0?'neg':''}">${V<0?'−':''}${fa(Math.abs(V))}</div><small>Cost ${net<0?'−':''}${fa(Math.abs(net))}${net>0?` · <span class="${pl<0?'out':'in'}">${pl<0?'−':'+'}${Math.abs(Math.round(pl/net*100))}%</span>`:''}</small></div>`+rateRow();
  if(!S.inv.length)return h+`<div class="empty">Nothing yet</div>`;
- const items=group(S.inv,x=>x.dir==='s'?-x.amount:x.amount).map(([n,v])=>({n,v,ic:iic(n)}));
- if(items.length)h+=`<div class="card">${pie(items)}</div>`;
+ if(hl)h+=`<h3>Holdings</h3><div class="list">${hl}</div>`;
+ const items=group(S.inv,val).map(([n,v])=>({n,v,ic:iic(n)}));
+ if(items.length)h+=`<div class="card" style="margin-top:12px">${pie(items)}</div>`;
  const a=S.inv.slice().sort((x,y)=>y.date.localeCompare(x.date)||y.id-x.id);
  return h+`<h3>History</h3><div class="list">${a.map(irow).join('')}</div>`}
 const catH=()=>['out','in'].map(ty=>`<h3>${ty==='out'?'Expense':'Income'} categories</h3><div class="card"><div class="chips" style="margin:0">${CATS[ty].map(([i,n],k)=>`<button onclick="openCat('${ty}',${k})">${i} ${esc(n)}</button>`).join('')}<button class="add" onclick="openCat('${ty}',-1)" aria-label="New">${sv('plus',14,2.4)}</button></div></div>`).join('');
@@ -350,16 +352,44 @@ function banner(){const q=soon();if(!q.length||document.hidden)return;
 
 function openInv(id){const x=id&&S.inv.find(y=>y.id===id);I=x?{...x,amount:String(x.amount)}:{dir:'b',amount:'',kind:IK[0][1],note:'',date:today()};drawInv();$('#ov').classList.add('on')}
 function drawInv(){
+ const pk=RK[I.kind];
  $('#sheet').innerHTML=`<div class="seg"><button class="${I.dir==='b'?'on':''}" onclick="I.dir='b';drawInv()">Buy</button><button class="${I.dir==='s'?'on':''}" onclick="I.dir='s';drawInv()">Sell</button></div>
- <input class="amount" inputmode="numeric" placeholder="0" value="${I.amount?fa(+I.amount):''}" oninput="I.amount=dig(this.value);this.value=I.amount?fa(+I.amount):''">
  <div class="chips">${IK.map(([i,n])=>`<button class="${I.kind===n?'on':''}" onclick="I.kind='${n}';drawInv()">${i} ${n}</button>`).join('')}</div>
+ ${pk?`<input class="amount" inputmode="decimal" placeholder="${I.kind==='Gold'?'Grams':'Dollars'}" value="${I.qty||''}" oninput="I.qty=dq(this.value);this.value=I.qty">`:''}
+ <input${pk?'':' class="amount"'} inputmode="numeric" placeholder="${pk?'Paid in Toman (optional)':'0'}" value="${I.amount?fa(+I.amount):''}" oninput="I.amount=dig(this.value);this.value=I.amount?fa(+I.amount):''">
  ${dsel('i',I.date,v=>{I.date=v;drawInv()})}
  <input dir="auto" placeholder="Note" value="${esc(I.note)}" oninput="I.note=this.value">
  <button class="btn" onclick="saveInv()">Save</button>${I.id?`<button class="btn del" onclick="delInv()">Delete</button>`:''}`}
-function saveInv(){const amount=+I.amount;if(!amount)return toast('Enter amount');
- const x={id:I.id||Date.now(),dir:I.dir,amount,kind:I.kind,note:I.note.trim(),date:I.date};
+function saveInv(){
+ const pk=RK[I.kind],qty=pk?+I.qty:0;let amount=+I.amount;
+ if(pk){if(!qty)return toast('Enter '+(I.kind==='Gold'?'grams':'dollars'));if(!amount){if(!rt(I.kind))return toast('Enter paid amount');amount=Math.round(qty*rt(I.kind))}}
+ else if(!amount)return toast('Enter amount');
+ const x={id:I.id||Date.now(),dir:I.dir,amount,kind:I.kind,note:I.note.trim(),date:I.date};if(qty)x.qty=qty;
  const i=S.inv.findIndex(y=>y.id===x.id);i>=0?S.inv[i]=x:S.inv.push(x);save();closeForm();render();toast('Saved')}
 function delInv(){if(!confirm('Delete?'))return;S.inv=S.inv.filter(x=>x.id!==I.id);save();closeForm();render()}
+
+/* rates */
+const RK={Gold:'gold',Dollar:'usd'};
+const rt=k=>S.rates&&S.rates[RK[k]],sg=x=>x.dir==='s'?-1:1,val=x=>sg(x)*(x.qty&&rt(x.kind)?x.qty*rt(x.kind):x.amount);
+const fq=n=>(+n).toLocaleString('en-US',{maximumFractionDigits:3}),fu=(k,q)=>k==='Dollar'?'$'+fq(q):fq(q)+' g',hm=()=>new Date().toTimeString().slice(0,5);
+const dq=s=>String(s||'').replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/٫/g,'.').replace(/[^\d.]/g,'');
+const hold=()=>Object.keys(RK).map(k=>{const q=S.inv.filter(x=>x.kind===k&&x.qty).reduce((s,x)=>s+sg(x)*x.qty,0),r=rt(k);return q?`<div class="row"><span class="ic">${iic(k)}</span><span class="mid"><b>${k}</b><small>${fu(k,q)}${r?` × ${fa(r)}`:''}</small></span><span class="amt">${r?fa(q*r):'—'}</span></div>`:''}).join('');
+const rateRow=()=>{const r=S.rates;return `<button class="note rt" onclick="openRates()">${r?`Gold ${r.gold?fa(r.gold):'—'} · USD ${r.usd?fa(r.usd):'—'}<small>${r.src==='manual'?'Manual':'TGJU'} · <bdi>${wj(r.d)}</bdi> ${r.h}</small>`:'Set gold & dollar rates'}</button>`};
+function openRates(){const r=S.rates||{};
+ $('#sheet').innerHTML=`<div class="sh">Rates</div>
+ <span class="lb">Gold 18k · Toman per gram</span><input id="rg" inputmode="numeric" value="${r.gold?fa(r.gold):''}" oninput="this.value=dig(this.value)?fa(+dig(this.value)):''">
+ <span class="lb">Dollar · Toman</span><input id="ru" inputmode="numeric" value="${r.usd?fa(r.usd):''}" oninput="this.value=dig(this.value)?fa(+dig(this.value)):''">
+ <button class="btn" onclick="getRates(1)">Update from TGJU</button><button class="btn alt" onclick="saveRates()">Save manually</button>`;
+ $('#ov').classList.add('on')}
+function saveRates(){const g=+dig($('#rg').value),u=+dig($('#ru').value);if(!g&&!u)return toast('Enter a rate');
+ S.rates={...S.rates,...(g&&{gold:g}),...(u&&{usd:u}),t:Date.now(),d:today(),h:hm(),src:'manual'};save();closeForm();render();toast('Saved')}
+async function getRates(force){
+ const r=S.rates;if(!force&&r&&Date.now()-r.t<36e5)return;
+ for(const u of['https://call4.tgju.org/ajax.json','https://call3.tgju.org/ajax.json']){
+  try{const c=new AbortController(),m=setTimeout(()=>c.abort(),8000),res=await fetch(u,{signal:c.signal,cache:'no-store'});clearTimeout(m);
+   const j=(await res.json()).current,g=+dig(String(j.geram18.p)),d=+dig(String(j.price_dollar_rl.p));
+   if(g>0&&d>0){S.rates={gold:Math.round(g/10),usd:Math.round(d/10),t:Date.now(),d:today(),h:hm(),src:'tgju'};save();if(tab==='inv')render();if(force){openRates();toast('Updated')}return}}catch(e){}}
+ if(force)toast("Can't reach TGJU")}
 
 async function backup(){
  const txt=JSON.stringify({app:'hesab',v:3,data:{tx:S.tx,inv:S.inv,plan:S.plan,cats:S.cats}}),name=`hesab-backup-${today()}.json`;
@@ -374,8 +404,8 @@ function load(txt){try{const j=JSON.parse(txt),d=j.data||j;if(!Array.isArray(d.t
 const restoreFile=f=>{if(!f)return;const r=new FileReader();r.onload=()=>load(r.result);r.readAsText(f)};
 function wipe(){if(confirm('Erase all data?')&&confirm('Sure? Back up first.')){S.tx=[];S.inv=[];S.plan=[];save();render()}}
 if('serviceWorker' in navigator)try{navigator.serviceWorker.register('sw.js').catch(()=>{})}catch(e){}
-document.addEventListener('visibilitychange',()=>{if(!document.hidden){render();banner()}});
-render();banner();
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){render();banner();getRates()}});
+render();banner();getRates();
 </script>
 </body>
 </html>
